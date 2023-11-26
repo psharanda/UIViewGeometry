@@ -4,44 +4,83 @@
 
 import UIKit
 
+struct GeometryState {
+    var bounds: CGRect
+    var center: CGPoint
+    var anchorPoint: CGPoint
+    var scale: CGFloat
+    var rotation: CGFloat
+    
+    var transform: CGAffineTransform {
+        return CGAffineTransform(scaleX: scale, y: scale).rotated(by: deg2rad(rotation))
+    }
+}
+
+enum Colors {
+    enum Background {
+        static let view = UIColor.systemBlue.withAlphaComponent(0.5)
+        static let superview = UIColor.systemGray6
+        static let subview = UIColor.systemYellow
+        static let frame = UIColor.systemMint.withAlphaComponent(0.1)
+        static let anchorPoint = UIColor.white
+    }
+
+    enum Border {
+        static let line = UIColor.systemRed
+        static let anchorPoint = UIColor.systemRed
+        static let superview = UIColor.systemGray
+    }
+}
+
+class SuperView: UIView {
+    
+    var state: GeometryState = GeometryState(bounds: .zero, center: .zero, anchorPoint: .zero, scale: 0, rotation: 0) {
+        didSet {
+            setNeedsDisplay()
+        }
+    }
+    
+    override func draw(_ rect: CGRect) {
+        super.draw(rect)
+        
+        let absoluteTransform = CGAffineTransform(translationX: -state.anchorPoint.x * state.bounds.width,
+                                                  y: -state.anchorPoint.y * state.bounds.height)
+            .concatenating(state.transform)
+            .concatenating(CGAffineTransform(translationX: state.center.x, y: state.center.y))
+        
+        let context = UIGraphicsGetCurrentContext()
+        context?.saveGState()
+        context?.concatenate(absoluteTransform)
+        UIColor.black.setStroke()
+        UIRectFrame(CGRect(origin: .zero, size: state.bounds.size))
+        context?.restoreGState()
+        
+    }
+}
+
+class TargetView: UIView {
+    override func draw(_ rect: CGRect) {
+        super.draw(rect)
+        Colors.Background.subview.setFill()
+        UIRectFill(CGRect(x: 0, y: 0, width: 20, height: 20))
+    }
+}
+
 class GeometryViewController: UIViewController {
     // MARK: - state
 
-    private struct State {
-        var bounds: CGRect
-        var center: CGPoint
-        var anchorPoint: CGPoint
-        var scale: CGFloat
-        var rotation: CGFloat
-    }
 
-    private var state = State(bounds: CGRect(x: 0, y: 0, width: 150, height: 150),
+
+    private var state = GeometryState(bounds: CGRect(x: 0, y: 0, width: 150, height: 150),
                               center: CGPoint(x: 150, y: 150),
                               anchorPoint: CGPoint(x: 0.5, y: 0.5),
                               scale: 1,
                               rotation: 0)
     {
         didSet {
+            superView.state = state
             updateValueLabels()
             updateTargetViewGeometry()
-        }
-    }
-
-    // MARK: - constants
-
-    private enum Colors {
-        enum Background {
-            static let view = UIColor.systemBlue
-            static let superview = UIColor.systemRed.withAlphaComponent(0.1)
-            static let subview = UIColor.systemYellow
-            static let frame = UIColor.systemMint.withAlphaComponent(0.1)
-            static let anchorPoint = UIColor.white
-        }
-
-        enum Border {
-            static let line = UIColor.systemRed
-            static let anchorPoint = UIColor.systemRed
-            static let superview = UIColor.systemRed
         }
     }
 
@@ -52,11 +91,19 @@ class GeometryViewController: UIViewController {
         v.backgroundColor = Colors.Background.frame
         return v
     }()
+    
+    private lazy var superView: SuperView = {
+        let v = SuperView()
+        v.contentMode = .redraw
+        v.state = self.state
+        return v
+    }()
 
     // This the view we experiment with, the view for which we change bounds, center, anchorPoint, transform
-    private lazy var targetView: UIView = {
-        let v = UIView()
+    private lazy var targetView: TargetView = {
+        let v = TargetView()
         v.backgroundColor = Colors.Background.view
+        v.contentMode = .redraw
         return v
     }()
 
@@ -113,7 +160,7 @@ class GeometryViewController: UIViewController {
         contentView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(contentView)
 
-        let superView = UIView()
+        
         superView.translatesAutoresizingMaskIntoConstraints = false
         superView.clipsToBounds = true
         superView.layer.borderWidth = 1
@@ -129,7 +176,7 @@ class GeometryViewController: UIViewController {
 
         let subview = UIView()
         subview.backgroundColor = Colors.Background.subview
-        subview.frame = CGRect(x: 5, y: 5, width: 40, height: 40)
+        subview.frame = CGRect(x: 20, y: 20, width: 40, height: 40)
         targetView.addSubview(subview)
 
         // legend
@@ -142,8 +189,8 @@ class GeometryViewController: UIViewController {
         legendView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(legendView)
 
-        let legendFont = UIFont.systemFont(ofSize: 9)
-        let legendViewSize = CGSize(width: 25, height: 18)
+        let legendFont = UIFont.systemFont(ofSize: 8)
+        let legendViewSize = CGSize(width: 16, height: 16)
 
         let viewLegend = UIView()
         viewLegend.translatesAutoresizingMaskIntoConstraints = false
@@ -182,7 +229,7 @@ class GeometryViewController: UIViewController {
 
         let subviewLegendLabel = UILabel()
         subviewLegendLabel.font = legendFont
-        subviewLegendLabel.text = "Subview"
+        subviewLegendLabel.text = "Subview/Content"
         legendView.addArrangedSubview(subviewLegendLabel)
 
         let frameLegend = UIView()
@@ -194,7 +241,7 @@ class GeometryViewController: UIViewController {
 
         let frameLegendLabel = UILabel()
         frameLegendLabel.font = legendFont
-        frameLegendLabel.text = "Frame"
+        frameLegendLabel.text = "View.frame"
         legendView.addArrangedSubview(frameLegendLabel)
 
         let anchorPointLegend = UIView()
@@ -209,7 +256,7 @@ class GeometryViewController: UIViewController {
 
         let anchorPointLegendLabel = UILabel()
         anchorPointLegendLabel.font = legendFont
-        anchorPointLegendLabel.text = "Anchor Point"
+        anchorPointLegendLabel.text = "View.anchorPoint"
         legendView.addArrangedSubview(anchorPointLegendLabel)
 
         // control panel
@@ -393,9 +440,9 @@ class GeometryViewController: UIViewController {
 
     private func updateTargetViewGeometry() {
         targetView.bounds = state.bounds
-        targetView.center = state.center // same as targetView.center
+        targetView.center = state.center
         targetView.anchorPoint = state.anchorPoint
-        targetView.transform = CGAffineTransform(scaleX: state.scale, y: state.scale).rotated(by: deg2rad(state.rotation))
+        targetView.transform = state.transform
 
         frameView.frame = targetView.frame
 

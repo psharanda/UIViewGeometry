@@ -20,8 +20,14 @@ func deg2rad(_ number: CGFloat) -> CGFloat {
 }
 
 /// Replicates the frame calculation performed by UIKit for views.
-func computeFrame(bounds: CGRect, center: CGPoint, anchorPoint: CGPoint, tranform: CGAffineTransform) -> CGRect {
-    let absoluteTransform = CGAffineTransform(translationX: -anchorPoint.x * bounds.width, y: -anchorPoint.y * bounds.height)
+func computeFrame(bounds: CGRect,
+                  center: CGPoint,
+                  anchorPoint: CGPoint,
+                  tranform: CGAffineTransform) -> CGRect {
+    let absoluteTransform = CGAffineTransform(
+            translationX: -anchorPoint.x * bounds.width,
+            y: -anchorPoint.y * bounds.height
+        )
         .concatenating(tranform)
         .concatenating(CGAffineTransform(translationX: center.x, y: center.y))
 
